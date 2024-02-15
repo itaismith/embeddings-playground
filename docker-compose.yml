@@ -1,0 +1,59 @@
+version: '3.8'
+services:
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+  server:
+    build:
+      context: ./server
+      dockerfile: ./Dockerfile
+    command: uvicorn server.api:app --reload --host 0.0.0.0 --port 8000
+    volumes:
+      - ./server:/app
+      - file-storage:/files
+      - chroma-storage:/chroma_path
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - point-store
+    environment:
+      - POSTGRES_HOST=db
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=mydb
+      - POINTSTORE_USER=point-store-user
+      - POINTSTORE_PASSWORD=point-store-password
+    env_file:
+      - ./server/.env
+
+  db:
+    image: postgres:latest
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: mydb
+    ports:
+      - "5432:5432"
+
+  point-store:
+    image: mongo:latest
+    volumes:
+      - point-store-data:/data/db
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: point-store-user
+      MONGO_INITDB_ROOT_PASSWORD: point-store-password
+
+volumes:
+  point-store-data:
+  file-storage:
+  chroma-storage:
+

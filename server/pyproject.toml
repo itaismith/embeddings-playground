@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "server"
+version = "0.1.0"
+description = ""
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fastapi = "^0.109.2"
+python-dotenv = "^1.0.1"
+uvicorn = "^0.27.0.post1"
+pydantic = "^2.6.0"
+motor = "^3.3.2"
+sqlalchemy = "^2.0.25"
+asyncpg = "^0.29.0"
+python-multipart = "^0.0.7"
+aiofiles = "^23.2.1"
+pypdf = "^4.0.1"
+chromadb = "^0.4.22"
+langchain = "^0.1.6"
+umap-learn = "^0.5.5"
+sentence-transformers = "^2.3.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
