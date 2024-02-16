@@ -11,12 +11,13 @@ from starlette.responses import FileResponse
 
 from server.chroma import get_playground_points, get_chroma_document, get_query_results, get_query_point
 from server.crud import read_docs, create_doc, delete_doc, read_doc, create_playground, update_playground_title, \
-    delete_pg, read_playgrounds, read_playground, create_query
+    delete_pg, read_playgrounds, read_playground, create_query, read_queries
 from server.db import SessionLocal, engine
 from server.embedding_models import get_embedding_models
 from server.file_store import save_file, delete_file, get_path
 from server.models import Base, DBDoc, DBPlayground
-from server.mongo import has_playground, get_mongo_client, create_points_collection, get_points, insert_query_point
+from server.mongo import has_playground, get_mongo_client, create_points_collection, get_points, insert_query_point, \
+    get_mongo_query_point
 from server.schemas import EmbeddingModel, Document, NewPlayground, Playground, RenamePlayground, Point, Query, \
     QueryResult
 
@@ -151,13 +152,20 @@ async def get_playground(playground_id: UUID4, session: Annotated[AsyncSession, 
 @app.get("/playgrounds/{playground_id}/plot-points", response_model=list[Point])
 async def get_plot(playground_id: UUID4, session: Annotated[AsyncSession, Depends(get_session)]) -> list[Point]:
     try:
+        print("========ENTER=========")
         playground = await read_playground(session, playground_id, load_docs=True)
+        print("========GOT PLAYGROUND=========")
         if not (await has_playground(mongo_client, str(playground.id))):
+            print("========NO POINTS FOUND=========")
             playground_points = await get_playground_points(session, playground)
+            print("========CREATED POINTS=========")
             await create_points_collection(mongo_client, str(playground_id), playground_points)
+            print("========POINTS IN MONGO=========")
+        await session.refresh(playground)
         return await get_points(mongo_client, str(playground.id))
 
     except Exception as e:
+        print(e)
         raise HTTPException(status_code=500, detail=f"An error occurred while fetching playground plot points {playground_id}: {e}")
 
 
@@ -191,3 +199,17 @@ async def query_playground(playground_id: UUID4, query: Query, session: Annotate
         print(e)
         raise HTTPException(status_code=500,
                             detail=f"An error occurred while submitting query {query}: {e}")
+
+
+@app.get("/playgrounds/{playground_id}/query/all", response_model=list[QueryResult])
+async def get_queries(playground_id: UUID4, session: Annotated[AsyncSession, Depends(get_session)]) -> list[QueryResult]:
+    try:
+        queries = await read_queries(session, playground_id)
+        queries = [QueryResult(id=query.id, results=query.results, text=query.text,
+                               point=await get_mongo_query_point(mongo_client, str(query.id))) for query in queries]
+        return queries
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500,
+                            detail=f"An error occurred while getting queries: {e}")
+

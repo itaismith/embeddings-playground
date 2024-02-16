@@ -1,7 +1,12 @@
 import React, { useContext, useEffect, useState } from "react";
 import PlaygroundModel from "../../models/PlaygroundModel";
 import useAPI from "../../hooks/useAPI";
-import { getChunk, getPlaygroundDocs, getPlaygroundPoints } from "../../api";
+import {
+  getChunk,
+  getPlaygroundDocs,
+  getPlaygroundPoints,
+  getQueries,
+} from "../../api";
 import PointModel from "../../models/PointModel";
 import Scatterplot from "../scatterplot/Scatterplot";
 import ErrorBanner from "../../layouts/ErrorBanner";
@@ -10,6 +15,7 @@ import PlaygroundTags from "./PlaygroundTags";
 import PlaygroundContext from "../../context/PlaygroundContext";
 import ChunksList from "./ChunksList";
 import QueryInput from "./QueryInput";
+import QueryModel from "../../models/QueryModel";
 
 const Playground: React.FC<{ playground: PlaygroundModel }> = (props) => {
   const [docs, loadingDocs, docsError] = useAPI(
@@ -18,6 +24,10 @@ const Playground: React.FC<{ playground: PlaygroundModel }> = (props) => {
   const [points, loadingPoints, pointsError] = useAPI<PointModel[]>(
     getPlaygroundPoints.bind(null, props.playground.id),
   );
+  const [serverQueries, loadingQueries, queriesError] = useAPI<QueryModel[]>(
+    getQueries.bind(null, props.playground.id),
+  );
+
   const {
     activeQuery,
     setActiveQuery,
@@ -26,7 +36,14 @@ const Playground: React.FC<{ playground: PlaygroundModel }> = (props) => {
     setChunks,
     setChunkIndex,
     nextChunkIndex,
+    setQueries,
   } = useContext(PlaygroundContext);
+
+  useEffect(() => {
+    if (serverQueries) {
+      setQueries(serverQueries);
+    }
+  }, [serverQueries]);
 
   const onPointClick = async (id: string) => {
     if (id in chunkIndex) {
@@ -40,7 +57,7 @@ const Playground: React.FC<{ playground: PlaygroundModel }> = (props) => {
     });
   };
 
-  if (docsError || pointsError) {
+  if (docsError || pointsError || queriesError) {
     return (
       <ErrorBanner
         message={docsError || pointsError}
@@ -49,7 +66,7 @@ const Playground: React.FC<{ playground: PlaygroundModel }> = (props) => {
     );
   }
 
-  if (loadingDocs || loadingPoints) {
+  if (loadingDocs || loadingPoints || loadingQueries) {
     return (
       <div className="w-full self-center justify-self-center">
         <Spinner />

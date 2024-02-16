@@ -163,4 +163,10 @@ export const submitQuery = async (
   );
 };
 
+export const getQueries = async (
+  playgroundId: string,
+): Promise<QueryModel[]> => {
+  return await request(axios.get, `playgrounds/${playgroundId}/query/all`);
+};
+
 export default getModels;

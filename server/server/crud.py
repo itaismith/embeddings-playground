@@ -198,3 +198,14 @@ async def create_query(session: AsyncSession, playground_id: UUID, query_text: s
     except Exception as e:
         logger.error(f"DB failed to record query: {e}")
         raise e
+
+
+async def read_queries(session: AsyncSession, playground_id: UUID) -> list[DBQuery]:
+    try:
+        select_queries = select(DBQuery).where(DBQuery.playground_id == playground_id)
+        result = await session.execute(select_queries)
+        queries = result.scalars().all()
+        return list(queries)
+    except Exception as e:
+        logger.error(f"DB failed to get queries: {e}")
+        raise e

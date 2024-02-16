@@ -41,6 +41,7 @@ async def embed_document(session: AsyncSession, document: DBDoc, service: Servic
     collection_name = str(await read_embedded_doc(session, document.id, service.value, model))
     if collection_name in [c.name for c in client.list_collections()]:
         return client.get_collection(collection_name)
+    await session.refresh(document)
     doc_chunks = chunk_document(document.name)
     ids = [str(uuid.uuid4()) for _ in doc_chunks]
     embedding_function = get_embedding_function(service, model)
@@ -60,7 +61,6 @@ async def get_playground_collection(session: AsyncSession, playground: DBPlaygro
         doc_vectors = doc_collection.get(include=['embeddings'])
         chroma_collection.add(ids=doc_vectors['ids'], embeddings=doc_vectors['embeddings'],
                               documents=[doc_collection.name for _ in doc_vectors['ids']])
-
     return chroma_collection
 
 

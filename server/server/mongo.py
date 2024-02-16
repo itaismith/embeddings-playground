@@ -1,5 +1,6 @@
 import os
 
+from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from server.schemas import Point
@@ -43,3 +44,9 @@ async def insert_query_point(client: AsyncIOMotorClient, point: dict) -> Point:
     mongo_point = {**point, "_id": point["id"], "z": 0}
     result = await collection.insert_one(mongo_point)
     return result.inserted_id
+
+
+async def get_mongo_query_point(client: AsyncIOMotorClient, query_id: str) -> Point:
+    collection = client[DB_NAME]["queries"]
+    document = await collection.find_one({'_id': query_id})
+    return Point(**document)
