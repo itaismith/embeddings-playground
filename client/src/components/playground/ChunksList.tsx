@@ -63,7 +63,7 @@ const ChunksList: React.FC = () => {
             className={`relative max-h-36 p-2 rounded-xl my-2 border overflow-y-scroll text-xs ${chunk.type === "query" ? "border-yellow-600" : "border-blue-600"}`}
           >
             <div
-              className="absolute top-1 right-1 p-1 bg-gray-200 rounded-full cursor-pointer hover:bg-gray-300"
+              className="absolute top-1 right-1 p-1 rounded-full cursor-pointer"
               onClick={() => removeChunk(chunk.id)}
             >
               <XMarkIcon className="w-2 h-2 text-gray-900" />

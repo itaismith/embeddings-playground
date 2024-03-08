@@ -19,6 +19,7 @@ class EmbeddingModel(BaseModel):
 
 
 class Document(BaseModel):
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
     id: UUID4
     name: str
 
@@ -33,12 +34,12 @@ class Playground(BaseModel):
     documentNames: Optional[list[str]] = []
 
 
-class NewPlayground(BaseModel):
+class NewPlaygroundRequest(BaseModel):
     service: str
     documents: list[UUID4]
 
 
-class RenamePlayground(BaseModel):
+class RenamePlaygroundRequest(BaseModel):
     new_title: str
 
 
@@ -55,6 +56,11 @@ class Query(BaseModel):
 
 class QueryResult(BaseModel):
     id: UUID4
-    point: Point
+    point: Optional[Point] = None
     results: list[UUID4]
+    text: str
+
+
+class Chunk(BaseModel):
+    id: UUID4
     text: str

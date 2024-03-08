@@ -18,15 +18,15 @@ import QueryInput from "./QueryInput";
 import QueryModel from "../../models/QueryModel";
 
 const Playground: React.FC<{ playground: PlaygroundModel }> = (props) => {
-  const [docs, loadingDocs, docsError] = useAPI(
+  const [docs, loadingDocs, docsError, fetchDocs] = useAPI(
     getPlaygroundDocs.bind(null, props.playground.id),
   );
-  const [points, loadingPoints, pointsError] = useAPI<PointModel[]>(
-    getPlaygroundPoints.bind(null, props.playground.id),
-  );
-  const [serverQueries, loadingQueries, queriesError] = useAPI<QueryModel[]>(
-    getQueries.bind(null, props.playground.id),
-  );
+  const [points, loadingPoints, pointsError, fetchPoints] = useAPI<
+    PointModel[]
+  >(getPlaygroundPoints.bind(null, props.playground.id));
+  const [serverQueries, loadingQueries, queriesError, fetchQueries] = useAPI<
+    QueryModel[]
+  >(getQueries.bind(null, props.playground.id));
 
   const {
     activeQuery,
@@ -44,6 +44,19 @@ const Playground: React.FC<{ playground: PlaygroundModel }> = (props) => {
       setQueries(serverQueries);
     }
   }, [serverQueries]);
+
+  useEffect(() => {
+    fetchAll();
+    setChunks([]);
+    setChunkIndex({});
+    setActiveQuery("");
+  }, [props.playground]);
+
+  const fetchAll = () => {
+    fetchDocs();
+    fetchPoints();
+    fetchQueries();
+  };
 
   const onPointClick = async (id: string) => {
     if (id in chunkIndex) {
@@ -92,6 +105,7 @@ const Playground: React.FC<{ playground: PlaygroundModel }> = (props) => {
       <div className="flex gap-3 pb-10 flex-grow w-full h-fit flex-wrap overflow-y-scroll mt-3">
         {queries.map((query) => (
           <div
+            key={query.id}
             className={`p-3 h-fit rounded-lg shadow cursor-pointer ${query.id === activeQuery ? "bg-orange-400 text-gray-100" : "bg-white text-gray-900"}`}
             onClick={() =>
               setActiveQuery((prev) => {

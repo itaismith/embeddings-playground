@@ -68,7 +68,7 @@ const Sidebar: React.FC = () => {
           <NewPlaygroundButton />
           {loading && !error && <Spinner />}
           {!loading && error && (
-            <ErrorBanner message={error} className={"text-white"} />
+            <ErrorBanner message={error} className={"text-white text-center"} />
           )}
           {!loading && !error && <PlaygroundList />}
           <div className="flex-shrink-0 h-20"></div>

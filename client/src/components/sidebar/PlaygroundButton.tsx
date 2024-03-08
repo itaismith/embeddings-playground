@@ -12,6 +12,7 @@ import PlaygroundContext from "../../context/PlaygroundContext";
 import { useNavigate, useParams } from "react-router-dom";
 import { deletePlayground, renamePlayground } from "../../api";
 import { TypeAnimation } from "react-type-animation";
+import Overlay from "../../layouts/Overlay";
 
 const PlaygroundButton: React.FC<{ playground: PlaygroundModel }> = (props) => {
   const {
@@ -34,18 +35,6 @@ const PlaygroundButton: React.FC<{ playground: PlaygroundModel }> = (props) => {
       renameRef.current.focus();
     }
   }, [renamingPlayground]);
-
-  // useEffect(() => {
-  //   if (
-  //     activePlayground === props.playground.id &&
-  //     playgrounds.length > 1 &&
-  //     title === "New Playground"
-  //   ) {
-  //     getChatTitle(props.chat.id, messages[0].content)
-  //       .then((t) => setAnimate(t))
-  //       .catch((e) => {});
-  //   }
-  // }, [messages]);
 
   const handleRenameEnter = () => {
     setShowPlaygroundButtonMenu("");
@@ -71,16 +60,15 @@ const PlaygroundButton: React.FC<{ playground: PlaygroundModel }> = (props) => {
   };
 
   const handleClick = () => {
-    setActivePlayground(props.playground.id);
     navigate(`/playgrounds/${props.playground.id}`);
   };
 
   const handleDelete = async () => {
     setDeletingPlayground("");
     setShowPlaygroundButtonMenu("");
-    navigate("/");
     await deletePlayground(props.playground);
     setPlaygrounds((prev) => prev.filter((p) => p.id !== props.playground.id));
+    navigate("/");
   };
 
   return (
@@ -135,7 +123,7 @@ const PlaygroundButton: React.FC<{ playground: PlaygroundModel }> = (props) => {
         </div>
       )}
       {showPlaygroundButtonMenu === props.playground.id && (
-        <div className="absolute flex flex-col gap-3 p-4 h-20 rounded-xl z-20 right-0 top-9 bg-gray-900">
+        <div className="absolute flex flex-col gap-3 p-4 h-20 rounded-xl right-0 top-9 bg-gray-900">
           <div
             className="flex items-center justify-start gap-2 text-gray-200 text-xs cursor-pointer"
             onClick={handleRenameEnter}

@@ -31,6 +31,7 @@ const PlaygroundList: React.FC = () => {
             key={playground.id}
             style={{
               transform: props.y.to((y) => `translate3d(0,${y}px,0)`),
+              zIndex: activePlayground === playground.id ? 10 : undefined,
               ...props,
             }}
           >

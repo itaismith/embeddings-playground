@@ -65,7 +65,9 @@ const NewPlaygroundModal: React.FC = () => {
       );
       setPlaygrounds((prev) => [newPlayground, ...prev]);
       setNewPlaygroundModalOpen(false);
-      navigate(`/playgrounds/${newPlayground.id}`);
+      setTimeout(() => {
+        navigate(`/playgrounds/${newPlayground.id}`);
+      }, 400);
     } catch (e) {}
   };
 
@@ -74,6 +76,7 @@ const NewPlaygroundModal: React.FC = () => {
       open={newPlaygroundModalOpen}
       onClose={() => setNewPlaygroundModalOpen(false)}
       onTransitionEnd={clear}
+      overlayStyle={activePlayground && "backdrop-blur-sm bg-white/30"}
     >
       <Paginate
         reset={reset}

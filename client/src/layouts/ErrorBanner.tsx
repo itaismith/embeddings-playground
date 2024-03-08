@@ -6,7 +6,7 @@ const ErrorBanner: React.FC<{ message: string; className?: string }> = (
 ) => {
   return (
     <div
-      className={`flex flex-col w-full justify-center items-center text-gray-800 ${props.className}`}
+      className={`flex flex-col w-full justify-center items-center text-gray-800 text-center ${props.className}`}
     >
       <ExclamationTriangleIcon className="w-7 h-7" />
       <p>{props.message}</p>

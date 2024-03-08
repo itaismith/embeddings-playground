@@ -2,210 +2,143 @@ import logging
 
 from fastapi import HTTPException
 from pydantic import UUID4
-from sqlalchemy import select, UUID, delete
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
-from server.embedding_models import models
-from server.models import DBDoc, DBPlayground, PlaygroundDocumentAssociation, DBEmbeddedDoc, DBQuery
-from server.schemas import NewPlayground, Service
+from server.db_utils import execute_query
+from server.schemas import Document, Playground, QueryResult
+from psycopg2.extensions import connection as Connection
 
 logger = logging.getLogger(__name__)
 
 
-async def read_docs(session: AsyncSession, doc_ids: list[UUID] = None) -> list[DBDoc]:
+async def read_docs(conn: Connection, doc_ids: list[UUID4] = None) -> list[Document]:
+    if doc_ids:
+        doc_ids = [str(uuid) for uuid in doc_ids]
+
+        query = "SELECT * FROM document WHERE id = ANY(%s::UUID[])"
+        result = await execute_query(conn, query, (doc_ids,))
+        if not result:
+            raise HTTPException(status_code=404, detail="Document(s) not found")
+    else:
+        query = "SELECT * FROM document"
+        result = await execute_query(conn, query, (doc_ids,))
+    return [Document(**document) for document in result]
+
+
+async def read_playground_docs(conn: Connection, playground_id: UUID4) -> list[UUID4]:
+    query = "SELECT document_id FROM playground_document_association where playground_id = %s"
+    document_ids = await execute_query(conn, query, (str(playground_id),))
+    return [document_id['document_id'] for document_id in document_ids]
+
+
+async def create_doc(conn: Connection, name: str) -> Document:
+    query = "INSERT INTO document (name) VALUES (%s) RETURNING *;"
+    params = (name,)
+    return await execute_query(conn, query, params, fetch_one=True)
+
+
+async def delete_doc(conn: Connection, doc_id: UUID4) -> tuple[Document, list[UUID4]]:
+    params = (str(doc_id),)
+
+    delete_playgrounds_query = """
+    DELETE FROM playground WHERE id IN (
+        SELECT playground_id FROM playground_document_association 
+        WHERE document_id = %s
+    )
+    RETURNING id
+    """
+    playground_ids = await execute_query(conn, delete_playgrounds_query, params)
+
+    delete_document_query = "DELETE FROM document WHERE id = %s RETURNING *;"
+
+    document = await execute_query(conn, delete_document_query, params, fetch_one=True)
+
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return Document(**document), [playground_id['id'] for playground_id in playground_ids]
+
+
+async def create_playground(conn: Connection, service: str, model: str, documents: list[UUID4]) -> Playground:
+    docs = await read_docs(conn, documents)
+
+    insert_playground_query = "INSERT INTO playground (service, model) VALUES (%s, %s) RETURNING *"
+    playground = await execute_query(conn, insert_playground_query, (service, model), fetch_one=True)
+
+    associate_documents_query = """
+    INSERT INTO playground_document_association (playground_id, document_id)
+    VALUES (%s, %s);
+    """
+
+    for doc in docs:
+        await execute_query(conn, associate_documents_query, (str(playground['id']), str(doc.id)), fetch_all=False)
+
+    return playground
+
+
+async def read_playgrounds(conn: Connection, playground_ids: list[UUID4] = None) -> list[Playground]:
+    if playground_ids:
+        playground_ids = [str(playground_id) for playground_id in playground_ids]
+        query = "SELECT * FROM playground WHERE id = ANY(%s::UUID[])"
+        result = await execute_query(conn, query, (playground_ids,))
+        if not result:
+            raise HTTPException(status_code=404, detail="Playground(s) not found")
+    else:
+        query = "SELECT * FROM playground"
+        result = await execute_query(conn, query, (playground_ids,))
+    return [Playground(**playground) for playground in result]
+
+
+async def update_playground_title(conn: Connection, playground_id: UUID4, new_title: str) -> UUID4:
+    update_query = """
+            UPDATE playground
+            SET title = %s
+            WHERE id = %s
+            RETURNING id;
+        """
+    updated = await execute_query(conn, update_query, (new_title, str(playground_id)), fetch_one=True)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Playground not found")
+    return updated['id']
+
+
+async def delete_playground(conn: Connection, playground_id: UUID4) -> UUID4:
+    params = (str(playground_id),)
+
+    delete_playground_query = "DELETE FROM playground WHERE id = %s RETURNING id;"
+    playground_id = await execute_query(conn, delete_playground_query, params, fetch_one=True)
+
+    if not playground_id:
+        raise HTTPException(status_code=404, detail="Playground not found")
+    return playground_id['id']
+
+
+async def read_embedded_doc(conn: Connection, document_id: UUID4, service: str, model: str) -> UUID4:
+    query = "SELECT id FROM embedded_document WHERE document_id = %s AND service = %s AND model = %s;"
+    result = await execute_query(conn, query, (str(document_id), service, model), fetch_one=True)
+    if not result:
+        raise HTTPException(status_code=404, detail="Embedded document not found")
+    return result['id']
+
+
+async def create_embedded_doc(conn: Connection, document_id: UUID4, service: str, model: str) -> UUID4:
+    query = "INSERT INTO embedded_document (document_id, service, model) VALUES (%s, %s, %s) RETURNING id;"
+    return (await execute_query(conn, query, (str(document_id), service, model), fetch_one=True))['id']
+
+
+async def read_or_create_embedded_doc(conn: Connection, document_id: UUID4, service: str, model: str) -> UUID4:
     try:
-        if doc_ids:
-            select_docs = select(DBDoc).where(DBDoc.id.in_(doc_ids))
-        else:
-            select_docs = select(DBDoc)
-        docs = (await session.execute(select_docs)).scalars().all()
-        return list(docs)
-    except Exception as e:
-        logger.error(f"DB failure to get documents list: {e}")
-        raise e
+        return await read_embedded_doc(conn, document_id, service, model)
+    except HTTPException:
+        return await create_embedded_doc(conn, document_id, service, model)
 
 
-async def create_doc(session: AsyncSession, name: str) -> DBDoc:
-    try:
-        new_doc = DBDoc(name=name)
-        session.add(new_doc)
-        await session.commit()
-        await session.refresh(new_doc)
-        return new_doc
-    except Exception as e:
-        logger.error(f"DB failed to record document: {e}")
-        raise e
+async def create_query(conn: Connection, playground_id: UUID4, query_text: str, results: list[UUID4]) -> QueryResult:
+    query = "INSERT INTO query (playground_id, text, results) VALUES (%s, %s, %s::UUID[]) RETURNING *;"
+    result = await execute_query(conn, query, (str(playground_id),
+                                               query_text, [str(r) for r in results]), fetch_one=True)
+    return QueryResult(**result)
 
 
-async def read_doc(session: AsyncSession, doc_id: UUID4) -> DBDoc:
-    try:
-        select_doc = select(DBDoc).where(DBDoc.id == doc_id)
-        result = await session.execute(select_doc)
-        doc = result.scalars().first()
-        if not doc:
-            raise HTTPException(status_code=404, detail="Document not found")
-        return doc
-    except Exception as e:
-        logger.error(f"DB failure to query document {doc_id}: {e}")
-        raise e
-
-
-async def delete_doc(session: AsyncSession, doc_id: UUID4) -> tuple[DBDoc, list[UUID]]:
-    try:
-        doc = await read_doc(session, doc_id)
-
-        select_associated_playgrounds = select(DBPlayground).join(
-            PlaygroundDocumentAssociation).where(PlaygroundDocumentAssociation.c.document_id == doc.id)
-        result = await session.execute(select_associated_playgrounds)
-        associated_playgrounds = result.scalars().all()
-
-        playground_ids = [playground.id for playground in associated_playgrounds]
-
-        await session.execute(
-            delete(PlaygroundDocumentAssociation)
-            .where(PlaygroundDocumentAssociation.c.document_id == doc.id)
-        )
-
-        await session.execute(
-            delete(DBEmbeddedDoc).where(DBEmbeddedDoc.document_id == doc.id)
-        )
-
-        for playground in associated_playgrounds:
-            await session.delete(playground)
-
-        await session.delete(doc)
-        await session.commit()
-        return doc, playground_ids
-    except Exception as e:
-        logger.error(f"DB failed to delete document {doc_id}: {e}")
-        raise e
-
-
-async def create_playground(session: AsyncSession, new_playground: NewPlayground) -> DBDoc:
-    try:
-        docs = await read_docs(session, new_playground.documents)
-        playground = DBPlayground(service=new_playground.service, model=models[Service(new_playground.service)],
-                                  documents=docs, title="New Playground")
-        session.add(playground)
-        await session.commit()
-        await session.refresh(playground)
-        return playground
-    except Exception as e:
-        logger.error(f"DB failed to create playground: {e}")
-        raise e
-
-
-async def read_playground(session: AsyncSession, playground_id: UUID4, load_docs: bool = False) -> DBPlayground:
-    try:
-        select_playground = select(DBPlayground)
-        if load_docs:
-            select_playground = select_playground.options(selectinload(DBPlayground.documents))
-        select_playground = select_playground.where(DBPlayground.id == playground_id)
-        result = await session.execute(select_playground)
-        playground = result.scalars().first()
-        if not playground:
-            raise HTTPException(status_code=404, detail="Playground not found")
-        return playground
-    except Exception as e:
-        logger.error(f"DB failure to query playground {playground_id}: {e}")
-        raise e
-
-
-async def update_playground_title(session: AsyncSession, playground_id: UUID4, new_title: str) -> DBPlayground:
-    try:
-        playground = await read_playground(session, playground_id)
-        playground.title = new_title
-        await session.commit()
-        await session.refresh(playground)
-        return playground
-    except Exception as e:
-        logger.error(f"DB failure to update playground title {playground_id}: {e}")
-        raise e
-
-
-async def delete_pg(session: AsyncSession, playground_id: UUID4) -> DBPlayground:
-    try:
-        playground = await read_playground(session, playground_id)
-        await session.execute(
-            delete(PlaygroundDocumentAssociation)
-            .where(PlaygroundDocumentAssociation.c.playground_id == playground.id)
-        )
-        await session.delete(playground)
-        await session.commit()
-        return playground
-    except Exception as e:
-        logger.error(f"DB failure to update playground title {playground_id}: {e}")
-        raise e
-
-
-async def read_playgrounds(session: AsyncSession) -> list[DBPlayground]:
-    try:
-        select_playgrounds = select(DBPlayground)
-        result = await session.execute(select_playgrounds)
-        playgrounds = list(result.scalars().all())
-        return playgrounds
-    except Exception as e:
-        logger.error(f"DB failure to read playgrounds: {e}")
-        raise e
-
-
-async def read_playground_docs(session: AsyncSession, playground_id: str) -> list[DBDoc]:
-    try:
-        select_docs = select(PlaygroundDocumentAssociation).where(PlaygroundDocumentAssociation.c.playground_id == playground_id)
-        result = await session.execute(select_docs)
-        ids = [doc.document_id for doc in result.scalars().all()]
-        return await read_docs(session, ids)
-    except Exception as e:
-        logger.error(f"DB failure to read docs: {e}")
-        raise e
-
-
-async def read_embedded_doc(session: AsyncSession, document_id: UUID, service: str, model: str) -> UUID:
-    try:
-        select_doc = select(DBEmbeddedDoc).where(DBEmbeddedDoc.document_id == document_id and
-                                                 DBEmbeddedDoc.service == service and DBEmbeddedDoc.model == model)
-        result = await session.execute(select_doc)
-        doc = result.scalars().first()
-        if not doc:
-            doc = await create_embedded_doc(session, document_id, service, model)
-        return doc.id
-
-    except Exception as e:
-        logger.error(f"DB failure to read embedded doc: {e}")
-        raise e
-
-
-async def create_embedded_doc(session: AsyncSession, document_id: UUID, service: str, model: str) -> DBEmbeddedDoc:
-    try:
-        new_doc = DBEmbeddedDoc(document_id=document_id, service=service, model=model)
-        session.add(new_doc)
-        await session.commit()
-        await session.refresh(new_doc)
-        return new_doc
-    except Exception as e:
-        logger.error(f"DB failed to record document: {e}")
-        raise e
-
-
-async def create_query(session: AsyncSession, playground_id: UUID, query_text: str, results: list[UUID]):
-    try:
-        new_query = DBQuery(text=query_text, playground_id=playground_id, results=results)
-        session.add(new_query)
-        await session.commit()
-        await session.refresh(new_query)
-        return new_query
-    except Exception as e:
-        logger.error(f"DB failed to record query: {e}")
-        raise e
-
-
-async def read_queries(session: AsyncSession, playground_id: UUID) -> list[DBQuery]:
-    try:
-        select_queries = select(DBQuery).where(DBQuery.playground_id == playground_id)
-        result = await session.execute(select_queries)
-        queries = result.scalars().all()
-        return list(queries)
-    except Exception as e:
-        logger.error(f"DB failed to get queries: {e}")
-        raise e
+async def read_queries(conn: Connection, playground_id: UUID4) -> list[QueryResult]:
+    query = "SELECT * FROM query WHERE playground_id = %s"
+    result = await execute_query(conn, query, (str(playground_id),))
+    return [QueryResult(**query) for query in result]

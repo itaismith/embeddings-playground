@@ -7,12 +7,17 @@ export interface ModalProps {
   open: boolean;
   onClose: () => void;
   onTransitionEnd?: () => void;
+  overlayStyle?: string;
 }
 
 const Modal: React.FC<ModalProps> = (props) => {
   return (
     <>
-      {props.open && <Overlay onClick={props.onClose} />}
+      <Overlay
+        onClick={props.onClose}
+        className={`${props.overlayStyle}  ${props.open ? "opacity-100" : "opacity-0 pointer-events-none"} transition-opacity duration-300`}
+      />
+
       <div
         className={`absolute z-30 w-[400px] h-[500px] top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 p-4 bg-gray-100 rounded-lg shadow ${props.open ? "opacity-100" : "opacity-0 pointer-events-none"} transition-opacity duration-300`}
         onTransitionEnd={props.onTransitionEnd}

@@ -21,6 +21,7 @@ chromadb = "^0.4.22"
 langchain = "^0.1.6"
 umap-learn = "^0.5.5"
 sentence-transformers = "^2.3.1"
+psycopg2-binary = "^2.9.9"
 
 
 [build-system]

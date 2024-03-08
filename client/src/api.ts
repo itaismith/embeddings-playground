@@ -1,10 +1,9 @@
-import axios, { Axios, AxiosRequestConfig, ResponseType } from "axios";
+import axios, { Axios, AxiosError, AxiosRequestConfig } from "axios";
 import EmbeddingsModel from "./models/EmbeddingsModel";
 import DocumentModel from "./models/DocumentModel";
 import PlaygroundModel from "./models/PlaygroundModel";
 import PointModel from "./models/PointModel";
 import QueryModel from "./models/QueryModel";
-import { a } from "react-spring";
 import ChunkModel from "./models/ChunkModel";
 
 const host: string = process.env.APP_ENV ? "server" : "localhost";
@@ -22,9 +21,20 @@ const request = async (
       config,
     );
     return response.data;
-  } catch (e) {
-    console.error("An error occurred: ", e);
-    throw e;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      console.error(
+        "An error occurred: ",
+        error.response?.data.detail || error.message,
+      );
+      throw error;
+    } else {
+      console.error("An unexpected error occurred: ", error);
+      // Create a new AxiosError with the message from the original error
+      throw new AxiosError(
+        typeof error === "string" ? error : "An unexpected error occurred",
+      );
+    }
   }
 };
 
@@ -128,7 +138,7 @@ export const getPlaygrounds = async (): Promise<PlaygroundModel[]> => {
 
 export const getPlaygroundDocs = async (
   playgroundId: string,
-): Promise<string[]> => {
+): Promise<DocumentModel[]> => {
   if (!playgroundId) {
     return [];
   }

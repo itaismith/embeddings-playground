@@ -4,6 +4,7 @@ import {
   DocumentIcon,
   RocketLaunchIcon,
 } from "@heroicons/react/24/outline";
+import DocumentModel from "../../models/DocumentModel";
 
 const Tag: React.FC<{
   className?: string;
@@ -21,7 +22,7 @@ const Tag: React.FC<{
 const PlaygroundTags: React.FC<{
   service: string;
   model: string;
-  docs: string[] | null;
+  docs: DocumentModel[] | null;
 }> = (props) => {
   return (
     <div className="flex flex-wrap mt-3 gap-2 select-none">
@@ -39,7 +40,7 @@ const PlaygroundTags: React.FC<{
           key={index}
         >
           <DocumentIcon className="w-3 h-3" />
-          <p className="text-xs">{doc}</p>
+          <p className="text-xs">{doc.name}</p>
         </Tag>
       ))}
     </div>

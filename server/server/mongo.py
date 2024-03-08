@@ -17,14 +17,9 @@ def get_mongo_client():
     return client
 
 
-async def has_playground(client: AsyncIOMotorClient, playground_id: str) -> bool:
-    collections = [collection['name'] async for collection in await client[DB_NAME].list_collections()]
-    return playground_id in collections
-
-
-async def create_points_collection(client: AsyncIOMotorClient, playground_id: str, points: list[dict]):
+async def create_points_collection(client: AsyncIOMotorClient, playground_id: str, points: list[Point]):
     collection = client[DB_NAME][playground_id]
-    mongo_points = [{**point, "_id": point["id"]} for point in points]
+    mongo_points = [{**point.dict(exclude={"id"}), "_id": str(point.id)} for point in points]
     result = await collection.insert_many(mongo_points)
     return result.inserted_ids
 
@@ -39,9 +34,9 @@ async def get_points(client: AsyncIOMotorClient, collection_name: str) -> list[P
     return points
 
 
-async def insert_query_point(client: AsyncIOMotorClient, point: dict) -> Point:
+async def insert_query_point(client: AsyncIOMotorClient, point: Point) -> Point:
     collection = client[DB_NAME]["queries"]
-    mongo_point = {**point, "_id": point["id"], "z": 0}
+    mongo_point = {**point.dict(exclude={"id"}), "_id": str(point.id)}
     result = await collection.insert_one(mongo_point)
     return result.inserted_id
 
@@ -49,4 +44,5 @@ async def insert_query_point(client: AsyncIOMotorClient, point: dict) -> Point:
 async def get_mongo_query_point(client: AsyncIOMotorClient, query_id: str) -> Point:
     collection = client[DB_NAME]["queries"]
     document = await collection.find_one({'_id': query_id})
-    return Point(**document)
+    del document['_id']
+    return Point(**document, id=query_id)

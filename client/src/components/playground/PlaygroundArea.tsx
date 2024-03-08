@@ -22,16 +22,16 @@ const PlaygroundArea: React.FC = () => {
   const [playground, setPlayground] = useState<PlaygroundModel>();
 
   useEffect(() => {
-    if (playgroundId !== activePlayground) {
-      setActivePlayground(playgroundId || "");
+    setPlayground(undefined);
+    if (!playgroundId) {
+      setActivePlayground("");
+      return;
     }
-  }, [playgroundId]);
 
-  useEffect(() => {
-    if (activePlayground && playgrounds) {
-      setPlayground(getPlayground(activePlayground));
-    }
-  }, [activePlayground, playgrounds]);
+    setActivePlayground(playgroundId);
+    const pg = getPlayground(playgroundId);
+    setPlayground(pg);
+  }, [playgroundId, playgrounds]);
 
   return (
     <div className="relative flex w-full max-h-full h-full">
